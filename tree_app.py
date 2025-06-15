@@ -1,80 +1,75 @@
 import streamlit as st
+from transformers import pipeline
 import joblib
-import openai
-import numpy as np
-import re
 
-# Load your trained model and label encoder
+# Load AI model from Hugging Face (FLAN-T5 - free)
+qa_model = pipeline("text2text-generation", model="google/flan-t5-small")
+
+# Load your trained ML model and label encoder
 model = joblib.load("tree_health_model.pkl")
-le = joblib.load("label_encoder.pkl")
+encoder = joblib.load("label_encoder.pkl")
 
-# Set OpenAI API Key (Use Streamlit secrets or paste directly — not recommended)
-openai.api_key = st.secrets["openai_api_key"]
+# Extract features
+def extract_tree_features(user_input):
+    prompt = f"Extract tree height, crown width, and DBH in meters from this sentence: {user_input}. Return three numbers separated by commas."
+    result = qa_model(prompt, max_new_tokens=50)[0]['generated_text']
+    try:
+        numbers = [float(x.strip()) for x in result.split(",")]
+        if len(numbers) == 3:
+            return numbers
+    except:
+        return None
+    return None
 
-# Title
-st.title("🌿 Tree Health AI Chatbot")
+# Predict tree health
+def predict_health(features):
+    prediction = model.predict([features])
+    return encoder.inverse_transform(prediction)[0]
 
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# Answer general questions
+def answer_tree_question(user_input):
+    prompt = f"Answer this tree-related question briefly: {user_input}"
+    return qa_model(prompt, max_new_tokens=100)[0]['generated_text']
 
-# Show previous messages
-for msg in st.session_state.messages:
+# Handle complaints
+def handle_complaint(user_input):
+    keywords = ["not working", "error", "issue", "problem", "slow", "upload", "bug"]
+    if any(k in user_input.lower() for k in keywords):
+        return "⚠️ Thank you for your feedback! Our technical team has been notified. You can also reach us at support@treecare.ai"
+    return None
+
+# Streamlit UI
+st.set_page_config(page_title="🌳 Tree Health AI Chatbot")
+st.title("🌿 Smart Tree Assistant")
+
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+user_input = st.chat_input("Ask a question or describe your tree (height, DBH, crown width)...")
+
+if user_input:
+    st.chat_message("user").markdown(user_input)
+    st.session_state.history.append({"role": "user", "content": user_input})
+
+    response = ""
+
+    # Try ML prediction
+    features = extract_tree_features(user_input)
+    if features:
+        prediction = predict_health(features)
+        response = f"✅ Based on your tree data, the predicted health is: **{prediction}**"
+    else:
+        # If not tree input, check complaint
+        complaint = handle_complaint(user_input)
+        if complaint:
+            response = complaint
+        else:
+            response = answer_tree_question(user_input)
+
+    st.chat_message("assistant").markdown(response)
+    st.session_state.history.append({"role": "assistant", "content": response})
+
+# Display chat history
+for msg in st.session_state.history:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-
-# Input from user
-user_input = st.chat_input("Ask about your tree health...")
-
-# GPT Function to Extract Features
-def extract_features_with_gpt(prompt):
-    system_msg = """You are a helpful assistant. 
-Given a message about tree properties, extract only numerical features as a Python list of floats.
-Example: "Tree is 5m tall, crown is 2.3, DBH is 0.8" → [5.0, 2.3, 0.8]
-Only return a list like: [5.0, 2.3, 0.8]
-"""
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role":"system", "content": system_msg},
-            {"role":"user", "content": prompt}
-        ]
-    )
-    return eval(response.choices[0].message["content"])
-
-# GPT for Answering Questions
-def ask_gpt_followup(question, prediction):
-    context = f"The tree health prediction is: {prediction}."
-    followup = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role":"system", "content": "You are a tree expert AI. Give helpful, short, friendly explanations."},
-            {"role":"user", "content": f"{context} {question}"}
-        ]
-    )
-    return followup.choices[0].message["content"]
-
-# Process input
-if user_input:
-    # Show user message
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
-
-    try:
-        features = extract_features_with_gpt(user_input)
-        prediction = model.predict([features])
-        label = le.inverse_transform(prediction)[0]
-
-        # AI-generated explanation
-        gpt_response = ask_gpt_followup(user_input, label)
-
-        full_response = f"**Tree Health:** {label}\n\n{gpt_response}"
-
-    except Exception as e:
-        full_response = "Sorry, I couldn't understand that. Please give me more info like tree height, crown diameter, DBH, etc."
-
-    # Show bot reply
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
-    with st.chat_message("assistant"):
-        st.markdown(full_response)
