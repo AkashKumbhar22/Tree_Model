@@ -1,111 +1,80 @@
 import streamlit as st
-import pandas as pd
 import joblib
+import openai
+import numpy as np
+import re
 
-# Load model and label encoder
-try:
-    rf_model = joblib.load("tree_health_model.pkl")
-    le = joblib.load("label_encoder.pkl")
-except Exception as e:
-    st.error(f"❌ Error loading model or label encoder: {e}")
-    st.stop()
+# Load your trained model and label encoder
+model = joblib.load("tree_health_model.pkl")
+le = joblib.load("label_encoder.pkl")
 
-# Sample credentials (you can replace this with DB/API in production)
-users = {
-    "admin": "password123",
-    "akash": "treehealth2025"
-}
+# Set OpenAI API Key (Use Streamlit secrets or paste directly — not recommended)
+openai.api_key = st.secrets["openai_api_key"]
 
-# Initialize session state for login
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "username" not in st.session_state:
-    st.session_state.username = ""
+# Title
+st.title("🌿 Tree Health AI Chatbot")
 
-# --- Login Page ---
-def login_page():
-    st.title("🔐 Login to Tree Health App")
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    username = st.text_input("Username (max 20 chars)").strip()
-    password = st.text_input("Password (max 20 chars)", type="password").strip()
+# Show previous messages
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    if st.button("Login"):
-        if len(username) > 20:
-            st.warning("❗ Username must be at most 20 characters.")
-        elif len(password) > 20:
-            st.warning("❗ Password must be at most 20 characters.")
-        elif username in users and users[username] == password:
-            st.session_state.authenticated = True
-            st.session_state.username = username
-            st.success("✅ Login successful!")
-            st.experimental_rerun()
-        else:
-            st.error("❌ Invalid username or password.")
+# Input from user
+user_input = st.chat_input("Ask about your tree health...")
 
-# --- Prediction Page ---
-def prediction_page():
-    st.title("🌳 Tree Health Prediction App")
-    st.subheader(f"👤 Logged in as: `{st.session_state.username}`")
+# GPT Function to Extract Features
+def extract_features_with_gpt(prompt):
+    system_msg = """You are a helpful assistant. 
+Given a message about tree properties, extract only numerical features as a Python list of floats.
+Example: "Tree is 5m tall, crown is 2.3, DBH is 0.8" → [5.0, 2.3, 0.8]
+Only return a list like: [5.0, 2.3, 0.8]
+"""
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role":"system", "content": system_msg},
+            {"role":"user", "content": prompt}
+        ]
+    )
+    return eval(response.choices[0].message["content"])
 
-    if st.button("Logout 🔓"):
-        st.session_state.authenticated = False
-        st.session_state.username = ""
-        st.experimental_rerun()
+# GPT for Answering Questions
+def ask_gpt_followup(question, prediction):
+    context = f"The tree health prediction is: {prediction}."
+    followup = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role":"system", "content": "You are a tree expert AI. Give helpful, short, friendly explanations."},
+            {"role":"user", "content": f"{context} {question}"}
+        ]
+    )
+    return followup.choices[0].message["content"]
 
-    st.header("Enter Tree Details")
+# Process input
+if user_input:
+    # Show user message
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
 
-    Latitude = st.number_input("Latitude", min_value=-90.0, max_value=90.0)
-    Longitude = st.number_input("Longitude", min_value=-180.0, max_value=180.0)
-    DBH = st.number_input("Diameter at Breast Height (DBH) [cm]", min_value=1.0, max_value=300.0)
-    Tree_Height = st.number_input("Tree Height [m]", min_value=1.0, max_value=130.0)
-    Crown_Width_North_South = st.number_input("Crown Width North-South [m]", min_value=0.5, max_value=60.0)
-    Crown_Width_East_West = st.number_input("Crown Width East-West [m]", min_value=0.5, max_value=60.0)
-    Slope = st.number_input("Slope [°]", min_value=0.0, max_value=90.0)
-    Elevation = st.number_input("Elevation [m]", min_value=-430.0, max_value=8848.0)
-    Temperature = st.number_input("Temperature [°C]", min_value=-50.0, max_value=60.0)
-    Humidity = st.number_input("Humidity [%]", min_value=0.0, max_value=100.0)
-    Soil_TN = st.number_input("Soil Total Nitrogen (TN) [%]", min_value=0.01, max_value=2.0)
-    Soil_TP = st.number_input("Soil Total Phosphorus (TP) [%]", min_value=0.01, max_value=1.0)
-    Soil_AP = st.number_input("Soil Available Phosphorus (AP) [%]", min_value=0.001, max_value=0.6)
-    Soil_AN = st.number_input("Soil Available Nitrogen (AN) [%]", min_value=0.001, max_value=1.5)
-    Menhinick_Index = st.number_input("Menhinick Index", min_value=0.0, max_value=10.0)
-    Gleason_Index = st.number_input("Gleason Index", min_value=0.0, max_value=20.0)
-    Disturbance_Level = st.number_input("Disturbance Level", min_value=0.0, max_value=1.0)
-    Fire_Risk_Index = st.number_input("Fire Risk Index", min_value=0.0, max_value=1.0)
+    try:
+        features = extract_features_with_gpt(user_input)
+        prediction = model.predict([features])
+        label = le.inverse_transform(prediction)[0]
 
-    if st.button("Predict Tree Health"):
-        input_data = {
-            'Latitude': Latitude,
-            'Longitude': Longitude,
-            'DBH': DBH,
-            'Tree_Height': Tree_Height,
-            'Crown_Width_North_South': Crown_Width_North_South,
-            'Crown_Width_East_West': Crown_Width_East_West,
-            'Slope': Slope,
-            'Elevation': Elevation,
-            'Temperature': Temperature,
-            'Humidity': Humidity,
-            'Soil_TN': Soil_TN,
-            'Soil_TP': Soil_TP,
-            'Soil_AP': Soil_AP,
-            'Soil_AN': Soil_AN,
-            'Menhinick_Index': Menhinick_Index,
-            'Gleason_Index': Gleason_Index,
-            'Disturbance_Level': Disturbance_Level,
-            'Fire_Risk_Index': Fire_Risk_Index
-        }
+        # AI-generated explanation
+        gpt_response = ask_gpt_followup(user_input, label)
 
-        input_df = pd.DataFrame([input_data])
+        full_response = f"**Tree Health:** {label}\n\n{gpt_response}"
 
-        try:
-            prediction_encoded = rf_model.predict(input_df)[0]
-            prediction_label = le.inverse_transform([prediction_encoded])[0]
-            st.success(f"🌿 Predicted Health Status: **{prediction_label}**")
-        except Exception as e:
-            st.error(f"❌ Prediction failed: {e}")
+    except Exception as e:
+        full_response = "Sorry, I couldn't understand that. Please give me more info like tree height, crown diameter, DBH, etc."
 
-# --- Main Control ---
-if st.session_state.authenticated:
-    prediction_page()
-else:
-    login_page()
+    # Show bot reply
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    with st.chat_message("assistant"):
+        st.markdown(full_response)
