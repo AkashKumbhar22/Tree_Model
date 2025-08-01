@@ -1,6 +1,9 @@
-**Project Overview**
+**Project Overview:**
+
 This project predicts the health status of trees and provides data-driven recommendations to improve their condition.
-**The system uses**:
+
+**The system uses:**:
+
 -Random Forest Classifier (trained offline, optimized to avoid overfitting)
 -Streamlit Web App for interactive user input
 -Google Gemini API to generate numeric recommendations for improvement
@@ -44,6 +47,7 @@ streamlit – Web interface
 requests, json – API communication with Gemini
 
 **Parameters Considered**
+
 **Controllable Factors**
 (Can be adjusted through care and management)
 Soil_TN (Total Nitrogen)
