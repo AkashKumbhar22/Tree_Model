@@ -79,7 +79,6 @@ Workflow**
 4)Gemini API provides exact numeric adjustments for controllable parameters
 5)Chatbot responds to improvement questions
 
-**Input & Output
 Input:**
 -19 parameters (environmental and biological)
 
