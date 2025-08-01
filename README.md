@@ -1,55 +1,96 @@
-# Run the Streamlit app
-streamlit run tree_app.py
+**Project Overview**
+This project predicts the health status of trees and provides data-driven recommendations to improve their condition.
+**The system uses**:
+-Random Forest Classifier (trained offline, optimized to avoid overfitting)
+-Streamlit Web App for interactive user input
+-Google Gemini API to generate numeric recommendations for improvement
+-AI Chatbot to answer follow-up queries about health improvement
 
-# Tree_Model
-Predicts the health status of trees (Healthy or Unhealthy) using a machine learning model. Useful for urban forestry, tree retirement planning, and ecological monitoring.
+**Objective**
+Predict tree health accurately (Unhealthy, Healthy, Very Healthy)
+Identify controllable factors affecting tree health
+Provide targeted improvement recommendations
 
+**Algorithm:**
+Random Forest Classifier
 
-**Overview**
-This project predicts the health status of trees and provides specific, actionable recommendations to improve their condition.
-The solution uses:
--A Random Forest Classifier to predict tree health
--A Streamlit web interface for user input & display
--Google Gemini API to suggest exact numeric targets for controllable parameters
--An AI-powered chatbot for personalized advice
+**Reason for selection:**
+Works well with tabular environmental and biological data
+Handles non-linear relationships
+Robust to outliers and noise
 
+**Predicts health status as:**
+Unhealthy – Tree at risk
+Healthy – Tree in good condition
+Very Healthy – Tree in optimal condition
 
-**Algorithm & Approach**
--Model: Random Forest Classifier (trained offline, loaded via .pkl)
--Prediction Task: Classify tree health as Unhealthy, Healthy, or Very Healthy
--Recommendation Engine: Gemini API analyzes controllable parameters and suggests optimized values to improve tree health
--Chatbot: Handles user queries about improvement, focusing only on controllable factors
-
+**Recommendation Engine**
+Gemini API analyzes controllable parameters
+Suggests numeric target ranges to reach Very Healthy status
+Chatbot
+AI-powered responses
+Answers improvement questions using only controllable factors
 
 **Libraries & Tools**
-Python: Main programming language
-Libraries:
+**Programming Language:**
+Python
+
+**Libraries:**
 pandas – Data manipulation
 numpy – Numerical computations
-scikit-learn – Model training & prediction
-joblib – Model and encoder loading
-streamlit – Web app interface
-requests, json – API integration with Gemini
+scikit-learn – Model training and evaluation
+joblib – Save/load model and encoder
+streamlit – Web interface
+requests, json – API communication with Gemini
 
+**Parameters Considered**
+**Controllable Factors**
+(Can be adjusted through care and management)
+Soil_TN (Total Nitrogen)
+Soil_TP (Total Phosphorus)
+Soil_AP (Available Phosphorus)
+Soil_AN (Available Nitrogen)
+Fire Risk Index
+Disturbance Level
 
-**How It Works**
--User Inputs parameters in Streamlit (19 environmental and biological values)
--Model Predicts the health category (Unhealthy, Healthy, Very Healthy)
--If health is below Very Healthy:
--Gemini API Suggests numeric adjustments for controllable parameters
--Chatbot answers follow-up questions on improving tree health
+**Non-Controllable Factors**
+Latitude, Longitude
+Tree Height
+DBH (Diameter at Breast Height)
+Crown Width (NS/EW)
+Slope
+Elevation
+Temperature (macro-climate)
+Humidity (macro-climate)
+Gleason Index
+Menhinick Index
 
+**How It Works
+Workflow**
+1)User inputs 19 parameters in Streamlit UI
+2)Model predicts health category using Random Forest
+3)Rule-based adjustment:
+-If parameters are far outside “Healthy” ranges → Override to Unhealthy
+-If all parameters fall in “Very Healthy” ranges → Override to Very Healthy
+4)Gemini API provides exact numeric adjustments for controllable parameters
+5)Chatbot responds to improvement questions
 
-** Input & Output**
---Input:
-19 parameters (both controllable & non-controllable)
+**Input & Output
+Input:**
+-19 parameters (environmental and biological)
 
---Output Categories:
-⚠️ Unhealthy – Tree at risk, needs attention
-🌱 Healthy – Tree is in good condition
-✅ Very Healthy – Tree is in optimal condition
+**Output:**
+Unhealthy – Needs action
+Healthy – Acceptable condition
+Very Healthy – Optimal condition
 
+**How to Run the App**
+# Clone repository
+git clone https://github.com/username/tree-health-prediction.git
+cd tree-health-prediction
 
-**The app considers multiple environmental and biological inputs, including:**
-Controllable Factors: Temperature, Humidity, Soil nutrients (TN, TP, AP, AN), Fire Risk, Disturbance Level
-Fixed Factors: Tree Height, DBH, Location, Slope, Elevation (used for prediction but not for direct adjustments)
+# Install dependencies
+pip install -r requirements.txt
+
+# Run Streamlit app
+streamlit run tree_app.py
